@@ -6,6 +6,7 @@ library(Seurat)
 library(SeuratData)
 library(BayesSpace)
 library(scales)
+library(patchwork)
 
 # read in the seurat object already processed -----------------------------
 list_brain <- readRDS(file = "out/object/list_brain_all_BayesSpace1000_q05.rds")
@@ -54,512 +55,59 @@ list_enhanced <- map(list_brain,function(brain){
 # 
 # # save the sample input and enhanced object
 saveRDS(list_enhanced,"out/object/list_enhanced_ALL2.rds")
-# saveRDS(sce,"out/object/test_sce_V05.rds")
-# 
-# sce.enhanced <- readRDS("out/object/test_sce.enhanced_V05.rds")
-# sce <- readRDS("out/object/test_sce_V05.rds")
 
-# list_enhanced <- readRDS("out/object/list_enhanced_ALL.rds")
+# cap the values for all the slices ---------------------------------------
 
-pdf("out/image/list_TSPO_enhanced.pdf")
-pmap(list(list_enhanced,names(list_enhanced)),function(x,name){
-  # enhance only some markers of interest
-  # sce.enhanced <- enhanceFeatures(sce.enhanced, sce,
-  #                                 feature_names=c("TSPO"),
-  #                                 nrounds=0)
-  featurePlot(x, "TSPO")+ggtitle(name)
-})
-dev.off()
+# plot CHIT1 from all the slices
+# x <- list_enhanced$V01
+# name <- "V01"
 
-list_plot <- lapply(c("SPP1","C3","HMGB1","IGFBP5","FGF1","CDKN1A"),function(gene){
-  featurePlot(list_enhanced$V16,gene)+theme(legend.position = "top")
-})
-wrap_plots(list_plot,nrow = 1)
-
-library(patchwork)
-pdf("out/image/list_panel_enhanced.pdf",width = 30,height = 5)
-pmap(list(list_enhanced,names(list_enhanced)),function(x,name){
-  if(name=="V08"){
-    list_plot <- lapply(c("SPP1","HMGB1","IGFBP5","FGF1","CDKN1B"),function(gene){
-      featurePlot(x,gene)+theme(legend.position = "top")
-    })
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-  } else if(name=="V14"){
-    list_plot <- lapply(c("SPP1","C3","HMGB1","IGFBP5","FGF1","CDKN1B"),function(gene){
-      featurePlot(x,gene)+theme(legend.position = "top")
-    })
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-  } else{
-    # list_plot <- lapply(c("SPP1","C3","HMGB1","IGFBP5","CDKN1A","CDKN1B"),function(gene){
-    list_plot <- lapply(c("SPP1","C3","HMGB1","IGFBP5","FGF1","CDKN1A"),function(gene){
-      featurePlot(x,gene)+theme(legend.position = "top")
-    })
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
+list_plot <- pmap(list(list_enhanced,names(list_enhanced)),function(x,name){
+  # track the progresso of the plotting
+  print(name)
+  
+  # if the gene is missiong from the matrix, add it as NA
+  if("CHIT1" %in% rownames(x)){
+    p <- featurePlot(x, "CHIT1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
+                                                     limits = c(0,2),
+                                                     oob = scales::squish) +
+      theme(legend.position = "top") +
+      labs(title = name)
+    
+    return(p)
+    
+  } else {
+    # remove the dim reduction from the object to allow the concatenation
+    reducedDims(x) <- NULL
+    # reducedDims(new_gene_sce)
+    
+    # 1. Create a vector of raw counts for the new gene across all cells
+    # new_gene_counts <- rpois(n = ncol(sce), lambda = 5)
+    new_gene_counts <- rep(NA,ncol(x))
+    
+    # 2. Create a new, single-gene SingleCellExperiment object
+    new_gene_sce <- SingleCellExperiment(
+      assays = list(logcounts = matrix(new_gene_counts, nrow = 1,
+                                       dimnames = list("CHIT1", colnames(x))))
+    )
+    
+    # 3. Combine the original and new objects
+    combined_sce <- rbind(x, new_gene_sce)
+    
+    # produce the plot
+    p <- featurePlot(combined_sce, "CHIT1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
+                                                     limits = c(0,2),
+                                                     oob = scales::squish) +
+      theme(legend.position = "top") +
+      labs(title = name)
+    
+    return(p)
   }
   
 })
+
+pdf("out/image/list_panel_enhanced_CHIT1.pdf",width = 20,height = 20)
+wrap_plots(list_plot)
 dev.off()
 
-# cap the values on the whole panel using CA as cut off -------------------
-# use the following color
-# "#F03B20"
 
-p1 <- featurePlot(list_enhanced$V01, "SPP1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                                 limits = c(0,2),
-                                                                 oob = scales::squish)+
-  theme(legend.position = "top")
-
-p2 <- featurePlot(list_enhanced$V01, "C3")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                               limits = c(0,1.4),
-                                                               oob = scales::squish)+
-  theme(legend.position = "top")
-
-p3 <- featurePlot(list_enhanced$V01, "HMGB1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                                  limits = c(0,0.6),
-                                                                  oob = scales::squish)+
-  theme(legend.position = "top")
-
-p4 <- featurePlot(list_enhanced$V01, "IGFBP5")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                                   limits = c(0,0.6),
-                                                                   oob = scales::squish)+
-  theme(legend.position = "top")
-
-p5 <- featurePlot(list_enhanced$V01, "FGF1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                                 limits = c(0,0.4),
-                                                                 oob = scales::squish)+
-  theme(legend.position = "top")
-
-p6 <- featurePlot(list_enhanced$V01, "CDKN1A")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                                   limits = c(0,0.6),
-                                                                   oob = scales::squish)+
-  theme(legend.position = "top")
-
-list_plot<-list(p1,p2,p3,p4,p5,p6)
-wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-
-pdf("out/image/list_panel_enhanced1.pdf",width = 30,height = 5)
-pmap(list(list_enhanced,names(list_enhanced)),function(x,name){
-  if(name=="V08"){
-    # c("SPP1","HMGB1","IGFBP5","FGF1","CDKN1B")
-    p1 <- featurePlot(x, "SPP1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                     limits = c(0,2),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    # p2 <- featurePlot(x, "C3")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                                limits = c(0,1.4),
-    #                                                                oob = scales::squish)+
-    #   theme(legend.position = "top")
-    
-    p3 <- featurePlot(x, "HMGB1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                      limits = c(0,0.6),
-                                                      oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p4 <- featurePlot(x, "IGFBP5")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p5 <- featurePlot(x, "FGF1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                     limits = c(0,0.4),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p6 <- featurePlot(x, "CDKN1B")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    # p6 <- featurePlot(x, "CDKN1A")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                    limits = c(0,0.6),
-    #                                                    oob = scales::squish)+
-    #   theme(legend.position = "top")
-    
-    list_plot<-list(p1,p3,p4,p5,p6)
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-    
-  } else if(name=="V14"){
-    # c("SPP1","C3","HMGB1","IGFBP5","FGF1","CDKN1B")
-    p1 <- featurePlot(x, "SPP1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                     limits = c(0,2),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p2 <- featurePlot(x, "C3")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                   limits = c(0,1.4),
-                                                   oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p3 <- featurePlot(x, "HMGB1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                      limits = c(0,0.6),
-                                                      oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p4 <- featurePlot(x, "IGFBP5")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p5 <- featurePlot(x, "FGF1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                     limits = c(0,0.4),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p6 <- featurePlot(x, "CDKN1B")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    # p6 <- featurePlot(x, "CDKN1A")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                    limits = c(0,0.6),
-    #                                                    oob = scales::squish)+
-    #   theme(legend.position = "top")
-    
-    list_plot<-list(p1,p2,p3,p4,p5,p6)
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-    
-  } else{
-    # list_plot <- lapply(c("SPP1","C3","HMGB1","IGFBP5","CDKN1A","CDKN1B"),function(gene){
-    # c("SPP1","C3","HMGB1","IGFBP5","FGF1","CDKN1A")
-    p1 <- featurePlot(x, "SPP1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                     limits = c(0,2),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p2 <- featurePlot(x, "C3")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                   limits = c(0,1.4),
-                                                   oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p3 <- featurePlot(x, "HMGB1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                      limits = c(0,0.6),
-                                                      oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p4 <- featurePlot(x, "IGFBP5")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p5 <- featurePlot(x, "FGF1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                     limits = c(0,0.4),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    # p6 <- featurePlot(x, "CDKN1B")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                    limits = c(0,0.6),
-    #                                                    oob = scales::squish)+
-    #   theme(legend.position = "top")
-    p6 <- featurePlot(x, "CDKN1A")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    list_plot<-list(p1,p2,p3,p4,p5,p6)
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-  }
-  
-})
-dev.off()
-
-pdf("out/image/list_panel_enhanced2.pdf",width = 30,height = 5)
-pmap(list(list_enhanced,names(list_enhanced)),function(x,name){
-  if(name=="V08"){
-    # c("SPP1","HMGB1","IGFBP5","FGF1","CDKN1B")
-    p1 <- featurePlot(x, "SPP1")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                     limits = c(0,2),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    # p2 <- featurePlot(x, "C3")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                                limits = c(0,1.4),
-    #                                                                oob = scales::squish)+
-    #   theme(legend.position = "top")
-    
-    p3 <- featurePlot(x, "HMGB1")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                      limits = c(0,0.6),
-                                                      oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p4 <- featurePlot(x, "IGFBP5")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p5 <- featurePlot(x, "FGF1")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                     limits = c(0,0.4),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p6 <- featurePlot(x, "CDKN1B")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    # p6 <- featurePlot(x, "CDKN1A")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                    limits = c(0,0.6),
-    #                                                    oob = scales::squish)+
-    #   theme(legend.position = "top")
-    
-    list_plot<-list(p1,p3,p4,p5,p6)
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-    
-  } else if(name=="V14"){
-    # c("SPP1","C3","HMGB1","IGFBP5","FGF1","CDKN1B")
-    p1 <- featurePlot(x, "SPP1")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                     limits = c(0,2),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p2 <- featurePlot(x, "C3")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                   limits = c(0,1.4),
-                                                   oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p3 <- featurePlot(x, "HMGB1")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                      limits = c(0,0.6),
-                                                      oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p4 <- featurePlot(x, "IGFBP5")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p5 <- featurePlot(x, "FGF1")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                     limits = c(0,0.4),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p6 <- featurePlot(x, "CDKN1B")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    # p6 <- featurePlot(x, "CDKN1A")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                    limits = c(0,0.6),
-    #                                                    oob = scales::squish)+
-    #   theme(legend.position = "top")
-    
-    list_plot<-list(p1,p2,p3,p4,p5,p6)
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-    
-  } else{
-    # list_plot <- lapply(c("SPP1","C3","HMGB1","IGFBP5","CDKN1A","CDKN1B"),function(gene){
-    # c("SPP1","C3","HMGB1","IGFBP5","FGF1","CDKN1A")
-    p1 <- featurePlot(x, "SPP1")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                     limits = c(0,2),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p2 <- featurePlot(x, "C3")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                   limits = c(0,1.4),
-                                                   oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p3 <- featurePlot(x, "HMGB1")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                      limits = c(0,0.6),
-                                                      oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p4 <- featurePlot(x, "IGFBP5")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p5 <- featurePlot(x, "FGF1")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                     limits = c(0,0.4),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    # p6 <- featurePlot(x, "CDKN1B")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                    limits = c(0,0.6),
-    #                                                    oob = scales::squish)+
-    #   theme(legend.position = "top")
-    p6 <- featurePlot(x, "CDKN1A")+scale_fill_gradient(low = "#F0F0F0",high = "black",
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    list_plot<-list(p1,p2,p3,p4,p5,p6)
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-  }
-  
-})
-dev.off()
-
-pdf("out/image/list_panel_enhanced3.pdf",width = 30,height = 5)
-pmap(list(list_enhanced,names(list_enhanced)),function(x,name){
-  if(name=="V08"){
-    # c("SPP1","HMGB1","IGFBP5","FGF1","CDKN1B")
-    p1 <- featurePlot(x, "SPP1")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                     limits = c(0,2),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    # p2 <- featurePlot(x, "C3")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                                limits = c(0,1.4),
-    #                                                                oob = scales::squish)+
-    #   theme(legend.position = "top")
-    
-    p3 <- featurePlot(x, "HMGB1")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                      limits = c(0,0.6),
-                                                      oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p4 <- featurePlot(x, "IGFBP5")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p5 <- featurePlot(x, "FGF1")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                     limits = c(0,0.4),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p6 <- featurePlot(x, "CDKN1B")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    # p6 <- featurePlot(x, "CDKN1A")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                    limits = c(0,0.6),
-    #                                                    oob = scales::squish)+
-    #   theme(legend.position = "top")
-    
-    list_plot<-list(p1,p3,p4,p5,p6)
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-    
-  } else if(name=="V14"){
-    # c("SPP1","C3","HMGB1","IGFBP5","FGF1","CDKN1B")
-    p1 <- featurePlot(x, "SPP1")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                     limits = c(0,2),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p2 <- featurePlot(x, "C3")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                   limits = c(0,1.4),
-                                                   oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p3 <- featurePlot(x, "HMGB1")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                      limits = c(0,0.6),
-                                                      oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p4 <- featurePlot(x, "IGFBP5")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p5 <- featurePlot(x, "FGF1")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                     limits = c(0,0.4),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p6 <- featurePlot(x, "CDKN1B")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    # p6 <- featurePlot(x, "CDKN1A")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                    limits = c(0,0.6),
-    #                                                    oob = scales::squish)+
-    #   theme(legend.position = "top")
-    
-    list_plot<-list(p1,p2,p3,p4,p5,p6)
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-    
-  } else{
-    # list_plot <- lapply(c("SPP1","C3","HMGB1","IGFBP5","CDKN1A","CDKN1B"),function(gene){
-    # c("SPP1","C3","HMGB1","IGFBP5","FGF1","CDKN1A")
-    p1 <- featurePlot(x, "SPP1")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                     limits = c(0,2),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p2 <- featurePlot(x, "C3")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                   limits = c(0,1.4),
-                                                   oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p3 <- featurePlot(x, "HMGB1")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                      limits = c(0,0.6),
-                                                      oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p4 <- featurePlot(x, "IGFBP5")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    p5 <- featurePlot(x, "FGF1")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                     limits = c(0,0.4),
-                                                     oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    # p6 <- featurePlot(x, "CDKN1B")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
-    #                                                    limits = c(0,0.6),
-    #                                                    oob = scales::squish)+
-    #   theme(legend.position = "top")
-    p6 <- featurePlot(x, "CDKN1A")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                                       limits = c(0,0.6),
-                                                       oob = scales::squish)+
-      theme(legend.position = "top")
-    
-    list_plot<-list(p1,p2,p3,p4,p5,p6)
-    wrap_plots(list_plot,nrow = 1) + plot_annotation(name)
-  }
-  
-})
-dev.off()
-
-# library(patchwork)
-# pdf("out/image/test.pdf",width = 15,height = 10)
-# pmap(list(list_enhanced[-12],names(list_enhanced[-12])),function(x,name){
-#     list_plot <- lapply(c("SPP1","C3","HMGB1","IGFBP5","CDKN1A","CDKN1B"),function(gene){
-#       featurePlot(x,gene)
-#     })
-#     wrap_plots(list_plot) + plot_annotation(name)
-# })
-# dev.off()
-
-
-
-# test --------------------------------------------------------------------
-#
-featurePlot(list_enhanced$V05, "TSPO")
-featurePlot(list_enhanced$V05, "TSPO")+scale_fill_gradient(low = "#F0F0F0",high = muted("black"),
-                                                           limits = c(0,0.3),
-                                                           oob = scales::squish)+ggtitle("V05")
-
-pdf("out/image/list_TSPO_enhanced_cap04.pdf")
-pmap(list(list_enhanced,names(list_enhanced)),function(x,name){
-  featurePlot(x, "TSPO")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                             limits = c(0,0.4),
-                                             oob = scales::squish) +
-    ggtitle(name)
-})
-dev.off()
-
-pdf("out/image/list_TSPO_enhanced_cap03.pdf")
-pmap(list(list_enhanced,names(list_enhanced)),function(x,name){
-  featurePlot(x, "TSPO")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                             limits = c(0,0.3),
-                                             oob = scales::squish) +
-    ggtitle(name)
-})
-dev.off()
-
-pdf("out/image/list_TSPO_enhanced_cap02.pdf")
-pmap(list(list_enhanced,names(list_enhanced)),function(x,name){
-  featurePlot(x, "TSPO")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                             limits = c(0,0.2),
-                                             oob = scales::squish) +
-    ggtitle(name)
-})
-dev.off()
-
-pdf("out/image/list_TSPO_enhanced_cap01.pdf")
-pmap(list(list_enhanced,names(list_enhanced)),function(x,name){
-  featurePlot(x, "TSPO")+scale_fill_gradient(low = "#F0F0F0",high = muted("red"),
-                                             limits = c(0,0.1),
-                                             oob = scales::squish) +
-    ggtitle(name)
-})
-dev.off()
