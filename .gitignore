@@ -1,0 +1,13 @@
+# folder
+out/
+data/
+.Rproj.user/
+raw_data/
+out_large/
+.vscode/
+
+# files
+.Rhistory
+.RData
+.Rproj.user
+.Ruserdata
