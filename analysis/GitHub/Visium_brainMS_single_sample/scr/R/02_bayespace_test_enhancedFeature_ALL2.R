@@ -110,4 +110,51 @@ pdf("out/image/list_panel_enhanced_CHIT1.pdf",width = 20,height = 20)
 wrap_plots(list_plot)
 dev.off()
 
+# plot the data using 0 instead of NA
+list_plot2 <- pmap(list(list_enhanced,names(list_enhanced)),function(x,name){
+  # track the progresso of the plotting
+  print(name)
+  
+  # if the gene is missiong from the matrix, add it as NA
+  if("CHIT1" %in% rownames(x)){
+    p <- featurePlot(x, "CHIT1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
+                                                     limits = c(0,1.5),
+                                                     oob = scales::squish) +
+      theme(legend.position = "top") +
+      labs(title = name)
+    
+    return(p)
+    
+  } else {
+    # remove the dim reduction from the object to allow the concatenation
+    reducedDims(x) <- NULL
+    # reducedDims(new_gene_sce)
+    
+    # 1. Create a vector of raw counts for the new gene across all cells
+    # new_gene_counts <- rpois(n = ncol(sce), lambda = 5)
+    new_gene_counts <- rep(0,ncol(x))
+    
+    # 2. Create a new, single-gene SingleCellExperiment object
+    new_gene_sce <- SingleCellExperiment(
+      assays = list(logcounts = matrix(new_gene_counts, nrow = 1,
+                                       dimnames = list("CHIT1", colnames(x))))
+    )
+    
+    # 3. Combine the original and new objects
+    combined_sce <- rbind(x, new_gene_sce)
+    
+    # produce the plot
+    p <- featurePlot(combined_sce, "CHIT1")+scale_fill_gradient(low = "#F0F0F0",high = "#F03B20",
+                                                                limits = c(0,1.5),
+                                                                oob = scales::squish) +
+      theme(legend.position = "top") +
+      labs(title = name)
+    
+    return(p)
+  }
+  
+})
 
+pdf("out/image/list_panel_enhanced_CHIT1_2.pdf",width = 20,height = 20)
+wrap_plots(list_plot2)
+dev.off()
