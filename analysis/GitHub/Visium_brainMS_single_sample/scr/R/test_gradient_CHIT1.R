@@ -178,10 +178,14 @@ df_test_cellType <- test_cellType %>%
 
 df_test_cellType %>%
   ggplot(aes(x=area,y=avg,group=slide))+geom_line()+facet_grid(cell_type~tissue,scales = "free")+theme_bw()+theme(strip.background = element_blank(),axis.text.x = element_text(hjust = 1,angle = 45))
-# ggsave("out/image/test_gradient_celltype_linePlot_martina.pdf",width = 12,height = 12)
+ggsave("out/image/test_lineplot_celltype_CHIT1_martina.pdf",width = 12,height = 12)
 
 # test a correlation approach
 df_full <- left_join(df_test,df_test_cellType,by=c("slide","manual_segmentation","condition","annotation","tissue_class","tissue"),suffix = c(".CHIT1",".cellType"))
+
+# save the table with CHIT expression and prop of different cell type
+df_full %>%
+  write_tsv("out/table/df_full_gradient_CHIT1.tsv")
 
 # plot the correlations
 df_full %>%
@@ -193,7 +197,7 @@ ggsave("out/image/test_correaltion_celltype_CHIT1_scatterPlot_martina.pdf",width
 mat_corr <- df_full %>%
   filter(CHIT1 == "CHIT1_norm") %>%
   group_by(tissue,cell_type) %>%
-  summarise(cor = cor(avg.CHIT1,avg.cellType,method = "pearson")) %>%
+  summarise(cor = cor(avg.CHIT1,avg.cellType,method = "spearman")) %>%
   pivot_wider(names_from = cell_type,values_from = cor) %>%
   column_to_rownames("tissue")
 
@@ -207,7 +211,7 @@ mat_corr_pvalue <- df_full %>%
   group_by(tissue,cell_type) %>%
   nest() %>% 
   mutate(test = map(data,function(x){
-    cor.test(x$avg.CHIT1,x$avg.cellType) %>% 
+    cor.test(x$avg.CHIT1,x$avg.cellType,method = "spearman") %>% 
       tidy()
   })) %>% 
   unnest(test) %>% 
